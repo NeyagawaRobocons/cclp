@@ -30,11 +30,6 @@ void move_points(std::vector<Vector2> &points, Matrix mat){
     }
 }
 
-void draw_points(std::vector<Vector2> &points){
-    for(Vector2 p : points){
-        DrawCircleV(p, 4.0f, BLUE);
-    }
-}
 
 void draw_points_scale(std::vector<Vector2> &points, float scale, Vector2 origin={0,0}, Color color=GRAY){
     for(Vector2 p : points){
@@ -63,24 +58,6 @@ void noise_points(std::vector<Vector2> &points, float noise){
     }
 }
 
-std::vector<Vector3> particles(unsigned int num, float noise_x, float noise_y, float noise_z){
-    std::random_device seed_gen;
-    std::default_random_engine engine(seed_gen());
-    std::normal_distribution<float> dist_x(0, noise_x);
-    std::normal_distribution<float> dist_y(0, noise_y);
-    std::normal_distribution<float> dist_z(0, noise_z);
-    std::vector<Vector3> result;
-    result.resize(num);
-    for(Vector3 &p : result){
-        p = {dist_x(engine), dist_y(engine), dist_z(engine)};
-    }
-    return result;
-}
-
-std::vector<Vector3> particles(unsigned int num, float noise){
-    return particles(num, noise, noise, noise);
-}
-
 float ave_distance_points_to_line(std::vector<Vector2> &points, Line line){
     float sum = 0;
     for(Vector2 p : points){
@@ -93,20 +70,6 @@ float ave_distance_points_to_line(std::vector<Vector2> &points, Line line){
     }
     return sum / points.size();
 }
-
-std::vector<std::vector<Vector2>> points_tf_particles(std::vector<Vector2> &points, std::vector<Vector3> &particles){
-    std::vector<std::vector<Vector2>> result;
-    result.resize(particles.size());
-    for(unsigned int i = 0; i < particles.size(); i++){
-        auto tf = tf2d_from_vec3(particles[i]);
-        result[i].resize(points.size());
-        for(unsigned int j = 0; j < points.size(); j++){
-            result[i][j] = Vector2Transform(points[j], tf);
-        }
-    }
-    return result;
-}
-
 std::vector<Vector2> choose_closest_points(std::vector<std::vector<Vector2>> &points_tf_particles, Line line){
     std::vector<Vector2> result;
     result.resize(points_tf_particles.size());
@@ -195,21 +158,6 @@ int main()
         }
         prev_mouse = mouse;
 
-        // particle search
-        // std::vector<Vector3> ptcls = particles(500, 0.2, 0.2, PI/2 / 5);
-        // std::vector<std::vector<Vector2>> points_tf_ptcls = points_tf_particles(points, ptcls);
-        // auto closest_points = choose_closest_points(points_tf_ptcls, line);
-
-        // loop particle search
-        // int loop_num = 10;
-        // auto dist = ave_distance_points_to_line(points, line);
-        // auto closest_points = points;
-        // for (int i = 0; i < loop_num; i++){
-        //     auto ptcls = particles(500, dist);
-        //     auto points_tf_ptcls = points_tf_particles(points, ptcls);
-        //     closest_points = choose_closest_points(points_tf_ptcls, line);
-        //     dist = ave_distance_points_to_line(closest_points, line);
-        // }
 
         // gradient descent
         float delta = 0.05;

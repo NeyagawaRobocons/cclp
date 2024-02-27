@@ -115,11 +115,16 @@ private:
                     std::lock_guard<std::mutex> lock(tf_vec_mutex_);
                     tf_vec_cp = tf_vec;
                 }
-                for (size_t i = 0; i < calc_per_loop_; i++)
+                if(map_lines_.size() != 0) for (size_t i = 0; i < calc_per_loop_; i++)
                 {
                     auto points = Vector2Transform(laser_data, tf2d_from_vec3(tf_vec_cp));
                     auto grad = grad_ave_distance_points_to_lines(points, map_lines_, delta);
                     tf_vec_cp = Vector3Multiply(grad, {-0.02, -0.02, -0.02});
+                }
+                else
+                {
+                    tf_vec_cp = {0, 0, 0};
+                    RCLCPP_INFO(this->get_logger(), "line_map is empty");
                 }
                 {
                     std::lock_guard<std::mutex> lock(tf_vec_mutex_);
@@ -127,7 +132,7 @@ private:
                 }
 
                 geometry_msgs::msg::TransformStamped tf_msg;
-                tf_msg.header.stamp = last_laser_data_time;
+                tf_msg.header.stamp = now();
                 tf_msg.header.frame_id = baselink_frame_id_;
                 tf_msg.child_frame_id = corrected_frame_id_;
                 tf_msg.transform.translation.x = -tf_vec_cp.x;
@@ -141,7 +146,7 @@ private:
                 tf_broadcaster_->sendTransform(tf_msg);
 
                 geometry_msgs::msg::PoseStamped pose_msg;
-                pose_msg.header.stamp = last_laser_data_time;
+                pose_msg.header.stamp = now();
                 pose_msg.header.frame_id = "map";
                 pose_msg.pose.position.x = -tf_vec_cp.x;
                 pose_msg.pose.position.y = -tf_vec_cp.y;

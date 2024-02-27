@@ -38,7 +38,7 @@ class LineMapServerNode(Node):
                 l.p2.y = line[1][1]
                 line_map.lines.append(l)
             self.publisher.publish(line_map)
-            self.get_logger().info("line_map_server_node has published line_map")
+            self.get_logger().info("line_map_server_node has published line_map (size: %d)" % len(line_map.lines))
 
 def main(args=None):
     rclpy.init(args=args)

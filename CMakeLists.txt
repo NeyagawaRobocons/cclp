@@ -28,12 +28,17 @@ ament_auto_add_executable(cord_correction_node src/cord_correction_node.cpp)
 target_link_libraries(cord_correction_node raylib)
 target_link_libraries(cord_correction_node "${cpp_typesupport_target}")
 
+ament_auto_add_executable(monitor src/monitor.cpp)
+target_link_libraries(monitor raylib)
+target_link_libraries(monitor "${cpp_typesupport_target}")
+
 ament_auto_add_executable(correction_test src/correction_test.cpp)
 target_link_libraries(correction_test raylib)
 target_link_libraries(correction_test "${cpp_typesupport_target}")
 
 install(TARGETS
   cord_correction_node
+  monitor
   correction_test
   DESTINATION lib/${PROJECT_NAME}
 )

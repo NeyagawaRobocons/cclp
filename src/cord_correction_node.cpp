@@ -119,13 +119,14 @@ private:
                 {
                     auto points = Vector2Transform(laser_data, tf2d_from_vec3(tf_vec_cp));
                     auto grad = grad_ave_distance_points_to_lines(points, map_lines_, delta);
-                    tf_vec_cp = Vector3Multiply(grad, {-0.02, -0.02, -0.02});
+                    tf_vec_cp = Vector3Add(tf_vec_cp,  Vector3Multiply(grad, {-0.02, -0.02, -0.02}));
                 }
                 else
                 {
                     tf_vec_cp = {0, 0, 0};
                     RCLCPP_INFO(this->get_logger(), "line_map is empty");
                 }
+                if(std::isnan(tf_vec_cp.x) || std::isnan(tf_vec_cp.y) || std::isnan(tf_vec_cp.z)) tf_vec_cp = {0, 0, 0};
                 {
                     std::lock_guard<std::mutex> lock(tf_vec_mutex_);
                     tf_vec = tf_vec_cp;
@@ -138,7 +139,7 @@ private:
                 tf_msg.transform.translation.x = -tf_vec_cp.x;
                 tf_msg.transform.translation.y = -tf_vec_cp.y;
                 tf_msg.transform.translation.z = 0;
-                auto rot = QuaternionFromEuler(-tf_vec_cp.z, 0, 0);
+                auto rot = QuaternionFromEuler(0, 0, -tf_vec_cp.z);
                 tf_msg.transform.rotation.x = rot.x;
                 tf_msg.transform.rotation.y = rot.y;
                 tf_msg.transform.rotation.z = rot.z;

@@ -31,12 +31,26 @@ public:
         this->declare_parameter<double>("publish_rate", 20.0);
         this->declare_parameter<int>("calc_per_loop", 5);
         this->declare_parameter<double>("gradient_delta", 0.02);
+        this->declare_parameter<double>("lidar_offset_x", 0.0);
+        this->declare_parameter<double>("lidar_offset_y", 0.0);
+        this->declare_parameter<double>("lidar_offset_theta", 0.0);
+        this->declare_parameter<bool>("lidar_invert_x", false);
+        this->declare_parameter<double>("lidar_circle_mask_radius", 0.1);
+        this->declare_parameter<double>("lidar_circle_mask_center_x", 0.0);
+        this->declare_parameter<double>("lidar_circle_mask_center_y", 0.0);
         map_frame_id_ = this->get_parameter("map_frame_id").as_string();
         baselink_frame_id_ = this->get_parameter("baselink_frame_id").as_string();
         corrected_frame_id_ = this->get_parameter("corrected_frame_id").as_string();
         gradient_delta_ = this->get_parameter("gradient_delta").as_double();
         publish_rate_ = this->get_parameter("publish_rate").as_double();
         calc_per_loop_ = this->get_parameter("calc_per_loop").as_int();
+        lidar_offset_x_ = this->get_parameter("lidar_offset_x").as_double();
+        lidar_offset_y_ = this->get_parameter("lidar_offset_y").as_double();
+        lidar_offset_theta_ = this->get_parameter("lidar_offset_theta").as_double();
+        lidar_invert_x_ = this->get_parameter("lidar_invert_x").as_bool();
+        lidar_circle_mask_radius_ = this->get_parameter("lidar_circle_mask_radius").as_double();
+        lidar_circle_mask_center_x_ = this->get_parameter("lidar_circle_mask_center_x").as_double();
+        lidar_circle_mask_center_y_ = this->get_parameter("lidar_circle_mask_center_y").as_double();
         auto output_topic = this->get_parameter("output_topic").as_string();
         auto map_topic = this->get_parameter("map_topic").as_string();
         auto laser_scan_topic = this->get_parameter("laser_scan_topic").as_string();
@@ -83,6 +97,13 @@ private:
     rclcpp::Time last_laser_data_time_;
     double publish_rate_;
     int calc_per_loop_;
+    double lidar_offset_x_;
+    double lidar_offset_y_;
+    double lidar_offset_theta_;
+    bool lidar_invert_x_;
+    double lidar_circle_mask_radius_;
+    double lidar_circle_mask_center_x_;
+    double lidar_circle_mask_center_y_;
     std::mutex tf_vec_mutex_;
     Vector3 tf_vec;
 
@@ -181,10 +202,12 @@ private:
         laser_data_.reserve(msg->ranges.size());
         for(unsigned int i = 0; i < msg->ranges.size(); i++){
             if(std::isinf(msg->ranges[i])) continue;
-            float angle = msg->angle_min + msg->angle_increment * i;
-            float x = msg->ranges[i] * std::cos(angle);
-            float y = msg->ranges[i] * std::sin(angle);
-            laser_data_.push_back({x, y});
+            if(std::isnan(msg->ranges[i])) continue;
+            float angle = msg->angle_min + msg->angle_increment * i + lidar_offset_theta_;
+            float x = msg->ranges[i] * std::cos(angle) + lidar_offset_x_;
+            float y = msg->ranges[i] * std::sin(angle) + lidar_offset_y_;
+            if(lidar_invert_x_) x = -x;
+            if(std::pow(x - lidar_circle_mask_center_x_, 2) + std::pow(y - lidar_circle_mask_center_y_, 2) > std::pow(lidar_circle_mask_radius_, 2))  laser_data_.push_back({x, y});
         }
         last_laser_data_time_ = msg->header.stamp;
     }

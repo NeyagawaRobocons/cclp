@@ -22,7 +22,8 @@ public:
     Monitor(): Node("monitor")
     {
         // Declare parameters
-        std::string laser_scan = this->declare_parameter("laser_scan_topic", "scan");
+        std::string laser1_scan = this->declare_parameter("laser1_scan_topic", "scan1");
+        std::string laser2_scan = this->declare_parameter("laser2_scan_topic", "scan2");
         std::string line_map = this->declare_parameter("line_map_topic", "line_map");
         std::string mouse_point_pub = this->declare_parameter("mouse_point_pub_topic", "initial_pose");
         map_frame_ = this->declare_parameter("map_frame", "map");
@@ -31,8 +32,10 @@ public:
         // create a client to get parameters
         // get_parameters_client_ = this->create_client<rcl_interfaces::srv::GetParameters>("/cord_correction_node/get_parameters");
         // Create topic subscriptions and publishers
-        laser_scan_sub_ = this->create_subscription<sensor_msgs::msg::LaserScan>(
-            laser_scan, 10, std::bind(&Monitor::LaserScanCallback, this, std::placeholders::_1));
+        laser1_scan_sub_ = this->create_subscription<sensor_msgs::msg::LaserScan>(
+            laser1_scan, 10, std::bind(&Monitor::Laser1ScanCallback, this, std::placeholders::_1));
+        laser2_scan_sub_ = this->create_subscription<sensor_msgs::msg::LaserScan>(
+            laser2_scan, 10, std::bind(&Monitor::Laser2ScanCallback, this, std::placeholders::_1));
         line_map_sub_ = this->create_subscription<cclp::msg::LineArray>(
             line_map, 10, std::bind(&Monitor::line_map_callback, this, std::placeholders::_1));
         mouse_point_pub_ = this->create_publisher<geometry_msgs::msg::Pose>(mouse_point_pub, 10);
@@ -49,7 +52,8 @@ public:
         RCLCPP_INFO(this->get_logger(), "Monitor node started");
     }
 private:
-    rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr laser_scan_sub_;
+    rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr laser1_scan_sub_;
+    rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr laser2_scan_sub_;
     rclcpp::Subscription<cclp::msg::LineArray>::SharedPtr line_map_sub_;
     rclcpp::Publisher<geometry_msgs::msg::Pose>::SharedPtr mouse_point_pub_;
     rclcpp::Client<rcl_interfaces::srv::GetParameters>::SharedPtr get_parameters_client_;
@@ -57,20 +61,32 @@ private:
     std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
     std::string map_frame_;
     std::string base_frame_;
-    std::mutex points_mutex;
-    std::vector<Vector2> points;
+    std::mutex points1_mutex;
+    std::vector<Vector2> points1;
+    std::mutex points2_mutex;
+    std::vector<Vector2> points2;
     std::mutex lines_mutex;
     std::vector<Line> lines;
     std::thread ui_thread_;
     rclcpp::TimerBase::SharedPtr get_params_wall_timer_;
 
-    double lidar_offset_x_ = 0;
-    double lidar_offset_y_ = 0;
-    double lidar_offset_theta_ = 0;
-    bool lidar_invert_x_ = true;
-    double lidar_circle_mask_radius_ = 0.3;
-    double lidar_circle_mask_center_x_ = 0;
-    double lidar_circle_mask_center_y_ = 0;
+    // lidar1 parameters
+    double lidar1_offset_x_ = 0.2699;
+    double lidar1_offset_y_ = 0.2699;
+    double lidar1_offset_theta_ = -2.3561944901923;
+    bool lidar1_invert_x_ = true;
+    double lidar1_circle_mask_radius_ = 0.3;
+    double lidar1_circle_mask_center_x_ = 0.0;
+    double lidar1_circle_mask_center_y_ = 0.0;
+    // lidar2 parameters
+    double lidar2_offset_x_ = - 0.2699;
+    double lidar2_offset_y_ = - 0.2699;
+    double lidar2_offset_theta_ = 0.78539816339745;
+    bool lidar2_invert_x_ = true;
+    double lidar2_circle_mask_radius_ = 0.3;
+    double lidar2_circle_mask_center_x_ = 0.0;
+    double lidar2_circle_mask_center_y_ = 0.0;
+
 
     void ui_main()
     {
@@ -133,17 +149,24 @@ private:
             Quaternion q = {transform.transform.rotation.x, transform.transform.rotation.y, transform.transform.rotation.z, transform.transform.rotation.w};
             Vector3 tf_vec3 = {transform.transform.translation.x, transform.transform.translation.y, QuaternionToEuler(q).z};
 
-            std::vector<Vector2> moved_points;
+            std::vector<Vector2> moved_points1;
             {
-                std::lock_guard<std::mutex> lock(points_mutex);
-                moved_points = points;
+                std::lock_guard<std::mutex> lock(points1_mutex);
+                moved_points1 = points1;
             }
-            move_points(moved_points, tf2d_from_vec3(tf_vec3));
+            move_points(moved_points1, tf2d_from_vec3(tf_vec3));
+            std::vector<Vector2> moved_points2;
+            {
+                std::lock_guard<std::mutex> lock(points2_mutex);
+                moved_points2 = points2;
+            }
+            move_points(moved_points2, tf2d_from_vec3(tf_vec3));
             // Clear the window
             BeginDrawing();
                 ClearBackground(RAYWHITE);
                 // Draw the points
-                draw_points_scale_y_inv(moved_points, map_draw_scale, map_draw_origin, BLUE);
+                draw_points_scale_y_inv(moved_points1, map_draw_scale, map_draw_origin, BLUE);
+                draw_points_scale_y_inv(moved_points2, map_draw_scale, map_draw_origin, BLUE);
                 // Draw the lines
                 {
                     std::lock_guard<std::mutex> lock(lines_mutex);
@@ -159,7 +182,8 @@ private:
                 std::stringstream ss;
                 ss << "FPS" << GetFPS() << std::endl << std::endl;
                 ss << "Transform: " << tf_vec3.x << ", " << tf_vec3.y << ", " << tf_vec3.z << std::endl;
-                ss << "Points: " << moved_points.size() << std::endl;
+                ss << "Points1: " << moved_points1.size() << std::endl;
+                ss << "Points2: " << moved_points2.size() << std::endl;
                 ss << "Lines: " << lines.size() << std::endl;
                 DrawText(ss.str().c_str(), 10, 10, 20, GRAY);
                 // End drawing
@@ -197,19 +221,35 @@ private:
     // }
 
 
-    void LaserScanCallback(const sensor_msgs::msg::LaserScan::SharedPtr msg){
-        std::lock_guard<std::mutex> lock(points_mutex);
-        points.clear();
-        points.reserve(msg->ranges.size());
+   void Laser1ScanCallback(const sensor_msgs::msg::LaserScan::SharedPtr msg){
+        std::lock_guard<std::mutex> lock(points1_mutex);
+        points1.clear();
+        points1.reserve(msg->ranges.size());
         for(unsigned int i = 0; i < msg->ranges.size(); i++){
             if(std::isinf(msg->ranges[i])) continue;
             if(std::isnan(msg->ranges[i])) continue;
-            float angle = msg->angle_min + msg->angle_increment * i + lidar_offset_theta_;
-            float x = msg->ranges[i] * std::cos(angle) + lidar_offset_x_;
-            float y = msg->ranges[i] * std::sin(angle) + lidar_offset_y_;
-            if(lidar_invert_x_) x = -x;
-            if(std::pow(x - lidar_circle_mask_center_x_, 2) + std::pow(y - lidar_circle_mask_center_y_, 2) < std::pow(lidar_circle_mask_radius_, 2)) continue;
-            points.push_back({x, y});
+            float angle = msg->angle_min + msg->angle_increment * i + lidar1_offset_theta_;
+            float x = msg->ranges[i] * std::cos(angle) + lidar1_offset_x_;
+            float y = msg->ranges[i] * std::sin(angle) + lidar1_offset_y_;
+            if(lidar1_invert_x_) x = -x;
+            if(std::pow(x - lidar1_circle_mask_center_x_, 2) + std::pow(y - lidar1_circle_mask_center_y_, 2) < std::pow(lidar1_circle_mask_radius_, 2)) continue;
+            points1.push_back({x, y});
+        }
+    }
+
+    void Laser2ScanCallback(const sensor_msgs::msg::LaserScan::SharedPtr msg){
+        std::lock_guard<std::mutex> lock(points2_mutex);
+        points2.clear();
+        points2.reserve(msg->ranges.size());
+        for(unsigned int i = 0; i < msg->ranges.size(); i++){
+            if(std::isinf(msg->ranges[i])) continue;
+            if(std::isnan(msg->ranges[i])) continue;
+            float angle = msg->angle_min + msg->angle_increment * i + lidar2_offset_theta_;
+            float x = msg->ranges[i] * std::cos(angle) + lidar2_offset_x_;
+            float y = msg->ranges[i] * std::sin(angle) + lidar2_offset_y_;
+            if(lidar2_invert_x_) x = -x;
+            if(std::pow(x - lidar2_circle_mask_center_x_, 2) + std::pow(y - lidar2_circle_mask_center_y_, 2) < std::pow(lidar2_circle_mask_radius_, 2)) continue;
+            points2.push_back({x, y});
         }
     }
 

@@ -274,7 +274,7 @@ private:
     void InitialPoseCallback(const geometry_msgs::msg::Pose::SharedPtr msg){
         try
         {
-            auto transform = tf_buffer_->lookupTransform("map", map_frame_id_, tf2::TimePointZero);
+            auto transform = tf_buffer_->lookupTransform(map_frame_id_, baselink_frame_id_, tf2::TimePointZero);
             std::lock_guard<std::mutex> lock(point_tf_vec_mutex_);
             auto msg_rot = QuaternionToEuler({msg->orientation.x, msg->orientation.y, msg->orientation.z, msg->orientation.w});
             auto tf_rot = QuaternionToEuler({transform.transform.rotation.x, transform.transform.rotation.y, transform.transform.rotation.z, transform.transform.rotation.w});

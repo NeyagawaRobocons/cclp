@@ -9,6 +9,9 @@
 #include <geometry_msgs/msg/pose.hpp>
 #include <tf2_ros/buffer.h>
 #include <tf2_ros/transform_listener.h>
+#include <rcl_interfaces/srv/get_parameters.hpp>
+#include <rcl_interfaces/msg/parameter_value.hpp>
+#include <rcl_interfaces/msg/parameter_type.hpp>
 
 #include "cclp/msg/line_array.hpp"
 #include "lines_and_points.hpp"
@@ -21,19 +24,24 @@ public:
         // Declare parameters
         std::string laser_scan = this->declare_parameter("laser_scan_topic", "scan");
         std::string line_map = this->declare_parameter("line_map_topic", "line_map");
-        std::string map_frame = this->declare_parameter("map_frame", "map");
-        std::string base_frame = this->declare_parameter("base_frame", "corrected_base_link");
-        map_frame_ = map_frame;
-        base_frame_ = base_frame;
-        // Create a subscription to the laser scan
+        std::string mouse_point_pub = this->declare_parameter("mouse_point_pub_topic", "initial_pose");
+        map_frame_ = this->declare_parameter("map_frame", "map");
+        base_frame_ = this->declare_parameter("base_frame", "corrected_base_link");
+
+        // create a client to get parameters
+        // get_parameters_client_ = this->create_client<rcl_interfaces::srv::GetParameters>("/cord_correction_node/get_parameters");
+        // Create topic subscriptions and publishers
         laser_scan_sub_ = this->create_subscription<sensor_msgs::msg::LaserScan>(
-            laser_scan, 10, std::bind(&Monitor::laser_scan_callback, this, std::placeholders::_1));
-        // Create a subscription to the line map
+            laser_scan, 10, std::bind(&Monitor::LaserScanCallback, this, std::placeholders::_1));
         line_map_sub_ = this->create_subscription<cclp::msg::LineArray>(
             line_map, 10, std::bind(&Monitor::line_map_callback, this, std::placeholders::_1));
+        mouse_point_pub_ = this->create_publisher<geometry_msgs::msg::Pose>(mouse_point_pub, 10);
         // Create a tf buffer and listener
         tf_buffer_ = std::make_shared<tf2_ros::Buffer>(this->get_clock());
         tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
+
+        // get_params_wall_timer_ = this->create_wall_timer(
+        //     std::chrono::milliseconds(1000), std::bind(&Monitor::get_lidar_params, this));
 
         // Start the UI thread
         ui_thread_ = std::thread(&Monitor::ui_main, this);
@@ -43,6 +51,8 @@ public:
 private:
     rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr laser_scan_sub_;
     rclcpp::Subscription<cclp::msg::LineArray>::SharedPtr line_map_sub_;
+    rclcpp::Publisher<geometry_msgs::msg::Pose>::SharedPtr mouse_point_pub_;
+    rclcpp::Client<rcl_interfaces::srv::GetParameters>::SharedPtr get_parameters_client_;
     std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
     std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
     std::string map_frame_;
@@ -52,6 +62,15 @@ private:
     std::mutex lines_mutex;
     std::vector<Line> lines;
     std::thread ui_thread_;
+    rclcpp::TimerBase::SharedPtr get_params_wall_timer_;
+
+    double lidar_offset_x_ = 0;
+    double lidar_offset_y_ = 0;
+    double lidar_offset_theta_ = 0;
+    bool lidar_invert_x_ = true;
+    double lidar_circle_mask_radius_ = 0.3;
+    double lidar_circle_mask_center_x_ = 0;
+    double lidar_circle_mask_center_y_ = 0;
 
     void ui_main()
     {
@@ -65,11 +84,44 @@ private:
         screenWidth = GetScreenWidth();
         screenHeight = GetScreenHeight();
 
+
+        Vector2 mouse_map_begin = {0, 0};
+        Vector2 mouse_map_end = {0, 0};
+
         SetTargetFPS(60);
         while (!WindowShouldClose())
         {
             screenWidth = GetScreenWidth();
             screenHeight = GetScreenHeight();
+
+            float map_draw_scale = 100;
+            Vector2 map_draw_origin = {(float)screenWidth / 2, (float)screenHeight - 100};
+
+            Vector2 mouse_map_begin;
+            if(IsMouseButtonPressed(MOUSE_LEFT_BUTTON)){
+                Vector2 mouse = GetMousePosition();
+                Vector2 mouse_map = Vector2Subtract(mouse, map_draw_origin);
+                mouse_map = Vector2Divide(mouse_map, {map_draw_scale, -map_draw_scale});
+                mouse_map_begin = mouse_map;
+            }
+            if(IsMouseButtonDown(MOUSE_LEFT_BUTTON)){
+                Vector2 mouse = GetMousePosition();
+                Vector2 mouse_map = Vector2Subtract(mouse, map_draw_origin);
+                mouse_map = Vector2Divide(mouse_map, {map_draw_scale, -map_draw_scale});
+                mouse_map_end = mouse_map;
+            }
+            if(IsMouseButtonReleased(MOUSE_LEFT_BUTTON)){
+                geometry_msgs::msg::Pose pose;
+                pose.position.x = mouse_map_begin.x;
+                pose.position.y = mouse_map_begin.y;
+                pose.position.z = 0;
+                Quaternion q = QuaternionFromEuler(0, 0, std::atan2(mouse_map_end.y - mouse_map_begin.y, mouse_map_end.x - mouse_map_begin.x));
+                pose.orientation.x = q.x;
+                pose.orientation.y = q.y;
+                pose.orientation.z = q.z;
+                pose.orientation.w = q.w;
+                mouse_point_pub_->publish(pose);
+            }
 
             geometry_msgs::msg::TransformStamped transform;
             try{
@@ -79,7 +131,7 @@ private:
                 continue;
             }
             Quaternion q = {transform.transform.rotation.x, transform.transform.rotation.y, transform.transform.rotation.z, transform.transform.rotation.w};
-            Vector3 tf_vec3 = {-transform.transform.translation.x, -transform.transform.translation.y, -QuaternionToEuler(q).z};
+            Vector3 tf_vec3 = {transform.transform.translation.x, transform.transform.translation.y, QuaternionToEuler(q).z};
 
             std::vector<Vector2> moved_points;
             {
@@ -91,12 +143,19 @@ private:
             BeginDrawing();
                 ClearBackground(RAYWHITE);
                 // Draw the points
-                draw_points_scale(moved_points, 100, {(float)screenWidth / 2, (float)screenHeight / 2}, BLUE);
+                draw_points_scale_y_inv(moved_points, map_draw_scale, map_draw_origin, BLUE);
                 // Draw the lines
                 {
                     std::lock_guard<std::mutex> lock(lines_mutex);
-                    draw_lines_scale(lines, 100, {(float)screenWidth / 2, (float)screenHeight / 2});
+                    draw_lines_scale_y_inv(lines, map_draw_scale, map_draw_origin);
                 }
+                // Draw the mouse line
+                if(IsMouseButtonDown(MOUSE_LEFT_BUTTON)){
+                    draw_line_scale_y_inv({mouse_map_begin, mouse_map_end}, map_draw_scale, map_draw_origin, RED);
+                }
+                // Draw the transform
+                draw_tf_scale_y_inv(tf_vec3, map_draw_scale, map_draw_origin);
+
                 std::stringstream ss;
                 ss << "FPS" << GetFPS() << std::endl << std::endl;
                 ss << "Transform: " << tf_vec3.x << ", " << tf_vec3.y << ", " << tf_vec3.z << std::endl;
@@ -111,19 +170,46 @@ private:
         rclcpp::shutdown();
     }
 
-    void laser_scan_callback(const sensor_msgs::msg::LaserScan::SharedPtr msg)
-    {
+    // void get_lidar_params()
+    // {
+    //     auto request = std::make_shared<rcl_interfaces::srv::GetParameters::Request>();
+    //     request->names.push_back("lidar_offset_x");
+    //     request->names.push_back("lidar_offset_y");
+    //     request->names.push_back("lidar_offset_theta");
+    //     request->names.push_back("lidar_invert_x");
+    //     request->names.push_back("lidar_circle_mask_radius");
+    //     request->names.push_back("lidar_circle_mask_center_x");
+    //     request->names.push_back("lidar_circle_mask_center_y");
+    //     auto future_result = get_parameters_client_->async_send_request(request);
+    //     future_result.wait();
+    //     auto response = future_result.get();
+    //     if(response->values.size() != 7){
+    //         RCLCPP_ERROR(this->get_logger(), "Failed to get parameters");
+    //         return;
+    //     }
+    //     lidar_offset_x_ = response->values[0].double_value;
+    //     lidar_offset_y_ = response->values[1].double_value;
+    //     lidar_offset_theta_ = response->values[2].double_value;
+    //     lidar_invert_x_ = response->values[3].bool_value;
+    //     lidar_circle_mask_radius_ = response->values[4].double_value;
+    //     lidar_circle_mask_center_x_ = response->values[5].double_value;
+    //     lidar_circle_mask_center_y_ = response->values[6].double_value;
+    // }
+
+
+    void LaserScanCallback(const sensor_msgs::msg::LaserScan::SharedPtr msg){
         std::lock_guard<std::mutex> lock(points_mutex);
         points.clear();
         points.reserve(msg->ranges.size());
-        for (size_t i = 0; i < msg->ranges.size(); i++)
-        {
-            if (msg->ranges[i] < msg->range_max && msg->ranges[i] > msg->range_min)
-            {
-                float angle = msg->angle_min + i * msg->angle_increment;
-                Vector2 point = {msg->ranges[i] * cos(angle), msg->ranges[i] * sin(angle)};
-                points.push_back(point);
-            }
+        for(unsigned int i = 0; i < msg->ranges.size(); i++){
+            if(std::isinf(msg->ranges[i])) continue;
+            if(std::isnan(msg->ranges[i])) continue;
+            float angle = msg->angle_min + msg->angle_increment * i + lidar_offset_theta_;
+            float x = msg->ranges[i] * std::cos(angle) + lidar_offset_x_;
+            float y = msg->ranges[i] * std::sin(angle) + lidar_offset_y_;
+            if(lidar_invert_x_) x = -x;
+            if(std::pow(x - lidar_circle_mask_center_x_, 2) + std::pow(y - lidar_circle_mask_center_y_, 2) < std::pow(lidar_circle_mask_radius_, 2)) continue;
+            points.push_back({x, y});
         }
     }
 

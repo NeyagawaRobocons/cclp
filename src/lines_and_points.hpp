@@ -29,28 +29,57 @@ void move_points(std::vector<Vector2> &points, Matrix mat){
     }
 }
 
+Matrix tf2d_from_vec3(Vector3 vec){
+    Matrix result = MatrixRotateZ(vec.z);
+    result = MatrixMultiply(result, MatrixTranslate(vec.x, vec.y, 0));
+    return result;
+}
+
 
 void draw_points_scale(std::vector<Vector2> &points, float scale, Vector2 origin={0,0}, Color color=GRAY){
     for(Vector2 p : points){
         DrawCircleV(Vector2Add(Vector2Multiply(p, {scale, scale}), origin), 4.0f, color);
     }
 }
-void draw_line_scale(Line line, float scale, Vector2 origin={0,0}){
+void draw_points_scale_y_inv(std::vector<Vector2> &points, float scale, Vector2 origin={0,0}, Color color=GRAY){
+    for(Vector2 p : points){
+        DrawCircleV(Vector2Add(Vector2Multiply(p, {scale, -scale}), origin), 4.0f, color);
+    }
+}
+void draw_line_scale(Line line, float scale, Vector2 origin={0,0}, Color color=GRAY){
         DrawSplineSegmentLinear(
             Vector2Add(Vector2Multiply(line.from, {scale, scale}), origin),
             Vector2Add(Vector2Multiply(line.to, {scale, scale}), origin),
-            4.0f, GRAY);
+            4.0f, color);
+}
+void draw_line_scale_y_inv(Line line, float scale, Vector2 origin={0,0}, Color color=GRAY){
+        DrawSplineSegmentLinear(
+            Vector2Add(Vector2Multiply(line.from, {scale, -scale}), origin),
+            Vector2Add(Vector2Multiply(line.to, {scale, -scale}), origin),
+            4.0f, color);
 }
 void draw_lines_scale(std::vector<Line> &lines, float scale, Vector2 origin={0,0}){
     for(Line l : lines){
         draw_line_scale(l, scale, origin);
     }
 }
+void draw_lines_scale_y_inv(std::vector<Line> &lines, float scale, Vector2 origin={0,0}){
+    for(Line l : lines){
+        draw_line_scale_y_inv(l, scale, origin);
+    }
+}
 
-Matrix tf2d_from_vec3(Vector3 vec){
-    Matrix result = MatrixRotateZ(vec.z);
-    result = MatrixMultiply(MatrixTranslate(vec.x, vec.y, 0), result);
-    return result;
+void draw_tf_scale_y_inv(Vector3 &tf, float scale, Vector2 origin={0,0}){
+    // draw x in red, draw y in blue
+    Matrix mat = tf2d_from_vec3(tf);
+    // Line x = {{0,0}, {1,0}};
+    // Line y = {{0,0}, {0,1}};
+    // x = {Vector2Transform(x.from, mat), Vector2Transform(x.to, mat)};
+    // y = {Vector2Transform(y.from, mat), Vector2Transform(y.to, mat)};
+    Line x = {{tf.x, tf.y}, {tf.x+cosf(tf.z), tf.y+sinf(tf.z)}};
+    Line y = {{tf.x, tf.y}, {tf.x-sinf(tf.z), tf.y+cosf(tf.z)}};
+    draw_line_scale_y_inv(x, scale, origin, RED);
+    draw_line_scale_y_inv(y, scale, origin, BLUE);
 }
 
 void noise_points(std::vector<Vector2> &points, float noise){

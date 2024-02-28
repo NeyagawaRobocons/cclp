@@ -1,0 +1,10 @@
+launch:
+- node:
+    package: cclp
+    executable: cord_correction_node
+- node:
+    package: cclp
+    executable: monitor
+- node:
+    package: cclp
+    executable: line_map_server.py

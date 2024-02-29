@@ -71,19 +71,19 @@ private:
     rclcpp::TimerBase::SharedPtr get_params_wall_timer_;
 
     // lidar1 parameters
-    double lidar1_offset_x_ = 0.2699;
+    double lidar1_offset_x_ = - 0.2699;
     double lidar1_offset_y_ = 0.2699;
-    double lidar1_offset_theta_ = -2.3561944901923;
+    double lidar1_offset_theta_ = -0.78539816339745;
     bool lidar1_invert_x_ = true;
-    double lidar1_circle_mask_radius_ = 0.3;
+    double lidar1_circle_mask_radius_ = 0.5;
     double lidar1_circle_mask_center_x_ = 0.0;
     double lidar1_circle_mask_center_y_ = 0.0;
     // lidar2 parameters
-    double lidar2_offset_x_ = - 0.2699;
+    double lidar2_offset_x_ = 0.2699;
     double lidar2_offset_y_ = - 0.2699;
-    double lidar2_offset_theta_ = 0.78539816339745;
+    double lidar2_offset_theta_ = 2.3561944901923;
     bool lidar2_invert_x_ = true;
-    double lidar2_circle_mask_radius_ = 0.3;
+    double lidar2_circle_mask_radius_ = 0.5;
     double lidar2_circle_mask_center_x_ = 0.0;
     double lidar2_circle_mask_center_y_ = 0.0;
 
@@ -149,6 +149,17 @@ private:
             Quaternion q = {transform.transform.rotation.x, transform.transform.rotation.y, transform.transform.rotation.z, transform.transform.rotation.w};
             Vector3 tf_vec3 = {transform.transform.translation.x, transform.transform.translation.y, QuaternionToEuler(q).z};
 
+
+            geometry_msgs::msg::TransformStamped transform_base;
+            try{
+            transform_base = tf_buffer_->lookupTransform(map_frame_, "base_link", tf2::TimePointZero);
+            }catch(tf2::TransformException &ex){
+                RCLCPP_ERROR(this->get_logger(), "Transform error: %s", ex.what());
+                continue;
+            }
+            Quaternion q_base = {transform_base.transform.rotation.x, transform_base.transform.rotation.y, transform_base.transform.rotation.z, transform_base.transform.rotation.w};
+            Vector3 tf_vec3_baes = {transform_base.transform.translation.x, transform_base.transform.translation.y, QuaternionToEuler(q_base).z};
+
             std::vector<Vector2> moved_points1;
             {
                 std::lock_guard<std::mutex> lock(points1_mutex);
@@ -178,6 +189,7 @@ private:
                 }
                 // Draw the transform
                 draw_tf_scale_y_inv(tf_vec3, map_draw_scale, map_draw_origin);
+                draw_tf_scale_y_inv(tf_vec3_baes, map_draw_scale, map_draw_origin);
 
                 std::stringstream ss;
                 ss << "FPS" << GetFPS() << std::endl << std::endl;

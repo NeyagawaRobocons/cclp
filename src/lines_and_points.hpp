@@ -23,6 +23,17 @@ std::vector<Vector2> points_from_line(Line line, unsigned int point_num){
     return result;
 }
 
+std::vector<Line> LinesTransform(std::vector<Line> &lines, Matrix mat){
+    std::vector<Line> result;
+    for(Line l : lines){
+        Line result_line;
+        result_line.from = Vector2Transform(l.from, mat);
+        result_line.to = Vector2Transform(l.to, mat);
+        result.push_back(result_line);
+    }
+    return result;
+}
+
 void move_points(std::vector<Vector2> &points, Matrix mat){
     for(Vector2 &p : points){
         p = Vector2Transform(p, mat);
@@ -32,6 +43,12 @@ void move_points(std::vector<Vector2> &points, Matrix mat){
 Matrix tf2d_from_vec3(Vector3 vec){
     Matrix result = MatrixRotateZ(vec.z);
     result = MatrixMultiply(result, MatrixTranslate(vec.x, vec.y, 0));
+    return result;
+}
+
+Matrix invert_tf2d_from_vec3(Vector3 vec){
+    Matrix result = MatrixInvert(MatrixTranslate(vec.x, vec.y, 0));
+    result = MatrixMultiply(result, MatrixRotateZ(-vec.z));
     return result;
 }
 

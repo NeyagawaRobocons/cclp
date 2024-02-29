@@ -33,19 +33,19 @@ public:
         this->declare_parameter<int>("calc_per_loop", 15);
         this->declare_parameter<double>("gradient_delta", 0.02);
         // lidar1 parameters
-        this->declare_parameter<double>("lidar1_offset_x", 0.2699);
+        this->declare_parameter<double>("lidar1_offset_x", -0.2699);
         this->declare_parameter<double>("lidar1_offset_y", 0.2699);
-        this->declare_parameter<double>("lidar1_offset_theta", -2.3561944901923);
+        this->declare_parameter<double>("lidar1_offset_theta", -0.78539816339745);
         this->declare_parameter<bool>("lidar1_invert_x", true);
-        this->declare_parameter<double>("lidar1_circle_mask_radius", 0.3);
+        this->declare_parameter<double>("lidar1_circle_mask_radius", 0.5);
         this->declare_parameter<double>("lidar1_circle_mask_center_x", 0.0);
         this->declare_parameter<double>("lidar1_circle_mask_center_y", 0.0);
         // lidar2 parameters
-        this->declare_parameter<double>("lidar2_offset_x", -0.2699);
+        this->declare_parameter<double>("lidar2_offset_x", 0.2699);
         this->declare_parameter<double>("lidar2_offset_y", -0.2699);
-        this->declare_parameter<double>("lidar2_offset_theta", 0.78539816339745);
+        this->declare_parameter<double>("lidar2_offset_theta", 2.3561944901923);
         this->declare_parameter<bool>("lidar2_invert_x", true);
-        this->declare_parameter<double>("lidar2_circle_mask_radius", 0.3);
+        this->declare_parameter<double>("lidar2_circle_mask_radius", 0.5);
         this->declare_parameter<double>("lidar2_circle_mask_center_x", 0.0);
         this->declare_parameter<double>("lidar2_circle_mask_center_y", 0.0);
         map_frame_id_ = this->get_parameter("map_frame_id").as_string();
@@ -142,6 +142,8 @@ private:
     double lidar2_circle_mask_radius_;
     double lidar2_circle_mask_center_x_;
     double lidar2_circle_mask_center_y_;
+    std::mutex base_offset_tf_vec_mutex_;
+    Vector3 base_offset_tf_vec;
     std::mutex point_tf_vec_mutex_;
     Vector3 point_tf_vec;
 
@@ -170,16 +172,20 @@ private:
                 }
                 RCLCPP_INFO(this->get_logger(), "points: %d", laser_data.size());
                 float transform_rot = QuaternionToEuler({transform.transform.rotation.x, transform.transform.rotation.y, transform.transform.rotation.z, transform.transform.rotation.w}).z;
-                laser_data = Vector2Transform(laser_data, tf2d_from_vec3({(float)transform.transform.translation.x, (float)transform.transform.translation.y, (float)transform.transform.rotation.z}));
                 float delta = 0.02;
+
+                auto base_tf3_vec = Vector3{transform.transform.translation.x, transform.transform.translation.y, transform_rot};
+                std::vector<Line> moved_lines = LinesTransform(map_lines_, invert_tf2d_from_vec3(base_offset_tf_vec));
+                moved_lines = LinesTransform(moved_lines, invert_tf2d_from_vec3(base_tf3_vec));
+                
                 Vector3 point_tf_vec_cp;
                 {
                     std::lock_guard<std::mutex> lock(point_tf_vec_mutex_);
                     point_tf_vec_cp = point_tf_vec;
-                    if(map_lines_.size() != 0) for (size_t i = 0; i < calc_per_loop_; i++)
+                    if(moved_lines.size() != 0) for (size_t i = 0; i < calc_per_loop_; i++)
                     {
                         auto points = Vector2Transform(laser_data, tf2d_from_vec3(point_tf_vec_cp));
-                        auto grad = grad_ave_distance_points_to_lines(points, map_lines_, delta);
+                        auto grad = grad_ave_distance_points_to_lines(points, moved_lines, delta);
                         point_tf_vec_cp = Vector3Add(point_tf_vec_cp,  Vector3Multiply(grad, {-0.02, -0.02, -0.02}));
                     }
                     else
@@ -193,11 +199,19 @@ private:
                     }
                 }
 
-                auto vec = Vector2Transform({point_tf_vec_cp.x, point_tf_vec_cp.y}, MatrixRotateZ(-transform_rot));
-                auto rot = QuaternionFromEuler(0, 0, point_tf_vec_cp.z);
+                auto vec = Vector2Transform(Vector2Transform({point_tf_vec_cp.x, point_tf_vec_cp.y}, tf2d_from_vec3(base_tf3_vec)), tf2d_from_vec3(base_offset_tf_vec));
+                // auto vec = Vector2{point_tf_vec_cp.x, point_tf_vec_cp.y};
+                auto rot = QuaternionFromEuler(0, 0, base_tf3_vec.z + base_offset_tf_vec.z + point_tf_vec_cp.z);
+                // auto rot = QuaternionFromEuler(0, 0, transform_rot - point_tf_vec_cp.z);
+
+                std::cout << "vec_base: " << base_tf3_vec.x << ", " << base_tf3_vec.y << ", " << base_tf3_vec.z << std::endl;
+                std::cout << "vec_offset: " << base_offset_tf_vec.x << ", " << base_offset_tf_vec.y << ", " << base_offset_tf_vec.z << std::endl;
+                std::cout << "point_tf_vec: " << point_tf_vec_cp.x << ", " << point_tf_vec_cp.y << ", " << point_tf_vec_cp.z << std::endl;
+                std::cout << "vec: " << vec.x << ", " << vec.y << std::endl << std::endl;
+
                 geometry_msgs::msg::TransformStamped tf_msg;
                 tf_msg.header.stamp = now();
-                tf_msg.header.frame_id = baselink_frame_id_;
+                tf_msg.header.frame_id = map_frame_id_;
                 tf_msg.child_frame_id = corrected_frame_id_;
                 tf_msg.transform.translation.x = vec.x;
                 tf_msg.transform.translation.y = vec.y;
@@ -210,7 +224,7 @@ private:
 
                 geometry_msgs::msg::PoseStamped pose_msg;
                 pose_msg.header.stamp = now();
-                pose_msg.header.frame_id = baselink_frame_id_;
+                pose_msg.header.frame_id = map_frame_id_;
                 pose_msg.pose.position.x = vec.x;
                 pose_msg.pose.position.y = vec.y;
                 pose_msg.pose.position.z = 0;
@@ -227,6 +241,88 @@ private:
         });
 
     }
+
+    // void StartTFThread(){
+    //     tf_thread_ = std::thread([this](){
+    //         rclcpp::Rate rate(publish_rate_);
+    //         while(rclcpp::ok()){
+    //             geometry_msgs::msg::TransformStamped transform;
+    //             std::vector<Vector2> laser_data;
+    //             rclcpp::Time last_laser_data_time;
+    //             {std::lock_guard<std::mutex> lock(laser1_data_mutex_);
+    //             laser_data = laser1_data_;
+    //             last_laser_data_time = last_laser1_data_time_;}
+    //             {std::lock_guard<std::mutex> lock2(laser2_data_mutex_);
+    //             laser_data.insert(laser_data.end(), laser2_data_.begin(), laser2_data_.end());}
+    //             try
+    //             {
+    //                 transform = tf_buffer_->lookupTransform(map_frame_id_, baselink_frame_id_, last_laser_data_time);
+    //             }
+    //             catch(const std::exception& e)
+    //             {
+    //                 std::cerr << e.what() << '\n';
+    //             }
+    //             RCLCPP_INFO(this->get_logger(), "points: %d", laser_data.size());
+    //             float transform_rot = QuaternionToEuler({transform.transform.rotation.x, transform.transform.rotation.y, transform.transform.rotation.z, transform.transform.rotation.w}).z;
+    //             laser_data = Vector2Transform(laser_data, tf2d_from_vec3({(float)transform.transform.translation.x, (float)transform.transform.translation.y, (float)transform.transform.rotation.z}));
+    //             float delta = 0.02;
+    //             Vector3 point_tf_vec_cp;
+    //             {
+    //                 std::lock_guard<std::mutex> lock(point_tf_vec_mutex_);
+    //                 point_tf_vec_cp = point_tf_vec;
+    //                 if(map_lines_.size() != 0) for (size_t i = 0; i < calc_per_loop_; i++)
+    //                 {
+    //                     auto points = Vector2Transform(laser_data, tf2d_from_vec3(point_tf_vec_cp));
+    //                     auto grad = grad_ave_distance_points_to_lines(points, map_lines_, delta);
+    //                     point_tf_vec_cp = Vector3Add(point_tf_vec_cp,  Vector3Multiply(grad, {-0.02, -0.02, -0.02}));
+    //                 }
+    //                 else
+    //                 {
+    //                     point_tf_vec_cp = {0, 0, 0};
+    //                     RCLCPP_INFO(this->get_logger(), "line_map is empty");
+    //                 }
+    //                 if(std::isnan(point_tf_vec_cp.x) || std::isnan(point_tf_vec_cp.y) || std::isnan(point_tf_vec_cp.z)) point_tf_vec_cp = {0, 0, 0};
+    //                 {
+    //                     point_tf_vec = point_tf_vec_cp;
+    //                 }
+    //             }
+
+    //             auto vec = Vector2Transform({point_tf_vec_cp.x, point_tf_vec_cp.y}, MatrixRotateZ(-transform_rot));
+    //             // auto vec = Vector2{point_tf_vec_cp.x, point_tf_vec_cp.y};
+    //             auto rot = QuaternionFromEuler(0, 0, point_tf_vec_cp.z);
+    //             // auto rot = QuaternionFromEuler(0, 0, transform_rot - point_tf_vec_cp.z);
+    //             geometry_msgs::msg::TransformStamped tf_msg;
+    //             tf_msg.header.stamp = now();
+    //             tf_msg.header.frame_id = baselink_frame_id_;
+    //             tf_msg.child_frame_id = corrected_frame_id_;
+    //             tf_msg.transform.translation.x = vec.x;
+    //             tf_msg.transform.translation.y = vec.y;
+    //             tf_msg.transform.translation.z = 0;
+    //             tf_msg.transform.rotation.x = rot.x;
+    //             tf_msg.transform.rotation.y = rot.y;
+    //             tf_msg.transform.rotation.z = rot.z;
+    //             tf_msg.transform.rotation.w = rot.w;
+    //             tf_broadcaster_->sendTransform(tf_msg);
+
+    //             geometry_msgs::msg::PoseStamped pose_msg;
+    //             pose_msg.header.stamp = now();
+    //             pose_msg.header.frame_id = baselink_frame_id_;
+    //             pose_msg.pose.position.x = vec.x;
+    //             pose_msg.pose.position.y = vec.y;
+    //             pose_msg.pose.position.z = 0;
+    //             pose_msg.pose.orientation.x = rot.x;
+    //             pose_msg.pose.orientation.y = rot.y;
+    //             pose_msg.pose.orientation.z = rot.z;
+    //             pose_msg.pose.orientation.w = rot.w;
+    //             pose_publisher_->publish(pose_msg);
+
+    //             rate.sleep();
+
+    //             RCLCPP_INFO(this->get_logger(), "point_tf_vec: %f, %f, %f", point_tf_vec_cp.x, point_tf_vec_cp.y, point_tf_vec_cp.z);
+    //         }
+    //     });
+
+    // }
 
     void MapCallback(const cclp::msg::LineArray::SharedPtr msg){
         map_lines_.clear();
@@ -275,12 +371,19 @@ private:
         try
         {
             auto transform = tf_buffer_->lookupTransform(map_frame_id_, baselink_frame_id_, tf2::TimePointZero);
-            std::lock_guard<std::mutex> lock(point_tf_vec_mutex_);
+            std::lock_guard<std::mutex> lock(base_offset_tf_vec_mutex_);
             auto msg_rot = QuaternionToEuler({msg->orientation.x, msg->orientation.y, msg->orientation.z, msg->orientation.w});
             auto tf_rot = QuaternionToEuler({transform.transform.rotation.x, transform.transform.rotation.y, transform.transform.rotation.z, transform.transform.rotation.w});
-            point_tf_vec = {(float)msg->position.x - (float)transform.transform.translation.x,
-                (float)msg->position.y - (float)transform.transform.translation.y,
-                msg_rot.z - tf_rot.z};
+            // point_tf_vec = {(float)msg->position.x - (float)transform.transform.translation.x,
+            //     (float)msg->position.y - (float)transform.transform.translation.y,
+            //     msg_rot.z - tf_rot.z};
+            auto new_offset_rot = base_offset_tf_vec.z - (msg_rot.z - tf_rot.z);
+            auto xy_offset = Vector2Transform({- (float)transform.transform.translation.x, - (float)transform.transform.translation.y}, MatrixRotateZ(msg_rot.z - tf_rot.z));
+            xy_offset = Vector2Add(xy_offset, {(float)msg->position.x, (float)msg->position.y});
+            base_offset_tf_vec = {xy_offset.x, xy_offset.y, msg_rot.z - tf_rot.z};
+
+            std::lock_guard<std::mutex> lock2(point_tf_vec_mutex_);
+            point_tf_vec = {0, 0, 0};
         }
         catch(const std::exception& e)
         {

@@ -13,6 +13,26 @@ class LineMapServerNode(Node):
         self.get_logger().info("line_map_server_node has been started")
         self.thread = threading.Thread(target=self.input_map_pub).start()
 
+        map = [
+            [[0.0, 0.0], [3.424, 0.0]],
+            [[3.424, 0.0], [3.424, 6.924]],
+            [[3.424, 6.924], [0.0, 6.924]],
+            [[0.0, 6.924], [0.0, 0.0]],
+            [[1.019, 0.0], [1.019, 1.0]],
+            [[0.8, 2.143], [3.424, 2.143]],
+            [[0.0, 3.381], [1.286, 3.381]],
+            [[0.8, 4.619], [2.105, 4.619]],
+            [[2.105, 2.143], [2.105, 5.924]],
+            [[1.019, 5.924], [1.019, 6.924]],
+        ]
+        self.map_offseted = []
+        y_delta = 6.924 /2
+        x_delta = 3.424+0.038/2
+        for line in self.map:
+            l = [[line[0][0]-self.x_delta, line[0][1]-self.y_delta], [line[1][0]-self.x_delta, line[1][1]-self.y_delta]]
+            self.map_offseted.append(l)
+
+    map_offseted = []
     map = [
         [[0.0, 0.0], [3.424, 0.0]],
         [[3.424, 0.0], [3.424, 6.924]],
@@ -25,12 +45,14 @@ class LineMapServerNode(Node):
         [[2.105, 2.143], [2.105, 5.924]],
         [[1.019, 5.924], [1.019, 6.924]],
     ]
+    y_delta = 6.924 /2
+    x_delta = 3.424+0.038/2
 
     def input_map_pub(self):
         while True:
             input("Press Enter to publish line_map")
             line_map = LineArray()
-            for line in self.map:
+            for line in self.map_offseted:
                 l = Line()
                 l.p1.x = line[0][0]
                 l.p1.y = line[0][1]

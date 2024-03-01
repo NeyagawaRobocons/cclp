@@ -111,7 +111,7 @@ private:
             screenHeight = GetScreenHeight();
 
             float map_draw_scale = 100;
-            Vector2 map_draw_origin = {(float)screenWidth / 2, (float)screenHeight - 100};
+            Vector2 map_draw_origin = {(float)screenWidth / 2, (float)screenHeight - 400};
 
             Vector2 mouse_map_begin;
             if(IsMouseButtonPressed(MOUSE_LEFT_BUTTON)){

@@ -157,7 +157,6 @@ private:
         tf_thread_ = std::thread([this](){
             rclcpp::Rate rate(publish_rate_);
             while(rclcpp::ok()){
-                geometry_msgs::msg::TransformStamped transform;
                 std::vector<Vector2> laser_data;
                 rclcpp::Time last_laser_data_time;
                 {std::lock_guard<std::mutex> lock(laser1_data_mutex_);
@@ -165,18 +164,19 @@ private:
                 last_laser_data_time = last_laser1_data_time_;}
                 {std::lock_guard<std::mutex> lock2(laser2_data_mutex_);
                 laser_data.insert(laser_data.end(), laser2_data_.begin(), laser2_data_.end());}
+                RCLCPP_INFO(this->get_logger(), "points: %d", laser_data.size());
+                Vector3 base_tf3_vec;
                 try
                 {
-                    transform = tf_buffer_->lookupTransform(map_frame_id_, baselink_frame_id_, last_laser_data_time);
+                    geometry_msgs::msg::TransformStamped transform = tf_buffer_->lookupTransform(map_frame_id_, baselink_frame_id_, last_laser_data_time);
+                    float transform_rot = QuaternionToEuler({transform.transform.rotation.x, transform.transform.rotation.y, transform.transform.rotation.z, transform.transform.rotation.w}).z;
+                    base_tf3_vec = Vector3{transform.transform.translation.x, transform.transform.translation.y, transform_rot};
                 }
                 catch(const std::exception& e)
                 {
                     std::cerr << e.what() << '\n';
                 }
-                RCLCPP_INFO(this->get_logger(), "points: %d", laser_data.size());
-                float transform_rot = QuaternionToEuler({transform.transform.rotation.x, transform.transform.rotation.y, transform.transform.rotation.z, transform.transform.rotation.w}).z;
 
-                auto base_tf3_vec = Vector3{transform.transform.translation.x, transform.transform.translation.y, transform_rot};
                 std::vector<Line> moved_lines = LinesTransform(map_lines_, invert_tf2d_from_vec3(base_offset_tf_vec));
                 moved_lines = LinesTransform(moved_lines, invert_tf2d_from_vec3(base_tf3_vec));
                 

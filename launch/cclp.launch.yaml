@@ -1,10 +1,49 @@
 launch:
 - node:
-    package: cclp
-    executable: cord_correction_node
+    pkg: nucleo_agent
+    exec: rp_encoder_agent_node
 - node:
-    package: cclp
-    executable: monitor
+    pkg: odometry_calculator 
+    exec: odometry_node
+    param:
+    - 
+        name: output_topic
+        value: robot_pose
 - node:
-    package: cclp
-    executable: line_map_server.py
+    pkg: calc_vel
+    exec: robot_tf_node
+- node:
+    pkg: ldlidar
+    exec: ldlidar
+    name: LD06_1
+    param:
+    - 
+        name: topic_name
+        value: scan1
+    - 
+        name: serial_port_candidates
+        value: [/dev/ttySerial564D005091]
+- node:
+    pkg: ldlidar
+    exec: ldlidar
+    name: LD06_2
+    param:
+    - 
+        name: topic_name
+        value: scan2
+    - 
+        name: serial_port_candidates
+        value: [/dev/ttySerial564D004832]
+- node:
+    pkg: cclp
+    exec: cord_correction_node
+    param:
+    -
+        name: output_topic
+        value: corrected_output_topic
+- node:
+    pkg: cclp
+    exec: monitor
+# - node:
+#     pkg: cclp
+#     exec: line_map_server.py

@@ -55,4 +55,10 @@ install(PROGRAMS
   scripts/line_map_server_node.py
   DESTINATION lib/${PROJECT_NAME}
 )
+
+install(DIRECTORY
+  launch
+  DESTINATION share/${PROJECT_NAME}
+)
+
 ament_package()

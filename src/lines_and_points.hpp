@@ -158,13 +158,13 @@ Vector3 grad_ave_distance_points_to_line(std::vector<Vector2> &points, Line line
     return {dx, dy, dz};
 }
 
-Vector3 grad_ave_distance_points_to_lines(std::vector<Vector2> &points, std::vector<Line> lines, float delta){
-    auto p_dx = Vector2Transform(points, tf2d_from_vec3({delta/2,0,0}));
-    auto p_m_dx = Vector2Transform(points, tf2d_from_vec3({-delta/2,0,0}));
-    auto p_dy = Vector2Transform(points, tf2d_from_vec3({0,delta/2,0}));
-    auto p_m_dy = Vector2Transform(points, tf2d_from_vec3({0,-delta/2,0}));
-    auto p_dz = Vector2Transform(points, tf2d_from_vec3({0,0,delta/2}));
-    auto p_m_dz = Vector2Transform(points, tf2d_from_vec3({0,0,-delta/2}));
+Vector3 grad_ave_distance_points_to_lines(std::vector<Vector2> &points, std::vector<Line> lines, Vector3 delta){
+    auto p_dx = Vector2Transform(points, tf2d_from_vec3({delta.x/2,0,0}));
+    auto p_m_dx = Vector2Transform(points, tf2d_from_vec3({-delta.x/2,0,0}));
+    auto p_dy = Vector2Transform(points, tf2d_from_vec3({0,delta.y/2,0}));
+    auto p_m_dy = Vector2Transform(points, tf2d_from_vec3({0,-delta.y/2,0}));
+    auto p_dz = Vector2Transform(points, tf2d_from_vec3({0,0,delta.z/2}));
+    auto p_m_dz = Vector2Transform(points, tf2d_from_vec3({0,0,-delta.z/2}));
     float dx = ave_distance_points_to_lines(p_dx, lines) - ave_distance_points_to_lines(p_m_dx, lines);
     float dy = ave_distance_points_to_lines(p_dy, lines) - ave_distance_points_to_lines(p_m_dy, lines);
     float dz = ave_distance_points_to_lines(p_dz, lines) - ave_distance_points_to_lines(p_m_dz, lines);

@@ -15,3 +15,12 @@ ros2 run cclp monitor
 
 ros2 run cclp line_map_server.py
 ```
+## launch
+```
+ros2 launch cclp cclp.launch.yaml
+
+# on other shell
+# send line map
+ros2 run cclp line_map_server_node.py
+```
+![alt text](doc/image.png)

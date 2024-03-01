@@ -31,7 +31,8 @@ public:
         this->declare_parameter<std::string>("initial_pose_topic", "initial_pose");
         this->declare_parameter<double>("publish_rate", 20.0);
         this->declare_parameter<int>("calc_per_loop", 15);
-        this->declare_parameter<double>("gradient_delta", 0.02);
+        this->declare_parameter<double>("xy_gradient_delta", 0.02);
+        this->declare_parameter<double>("theta_gradient_delta", 0.02);
         // lidar1 parameters
         this->declare_parameter<double>("lidar1_offset_x", -0.2699);
         this->declare_parameter<double>("lidar1_offset_y", 0.2699);
@@ -51,7 +52,8 @@ public:
         map_frame_id_ = this->get_parameter("map_frame_id").as_string();
         baselink_frame_id_ = this->get_parameter("baselink_frame_id").as_string();
         corrected_frame_id_ = this->get_parameter("corrected_frame_id").as_string();
-        gradient_delta_ = this->get_parameter("gradient_delta").as_double();
+        xy_gradient_delta_ = this->get_parameter("xy_gradient_delta").as_double();
+        theta_gradient_delta_ = this->get_parameter("theta_gradient_delta").as_double();
         publish_rate_ = this->get_parameter("publish_rate").as_double();
         calc_per_loop_ = this->get_parameter("calc_per_loop").as_int();
         // lidar1 parameters
@@ -147,7 +149,8 @@ private:
     std::mutex point_tf_vec_mutex_;
     Vector3 point_tf_vec;
 
-    float gradient_delta_;
+    float xy_gradient_delta_;
+    float theta_gradient_delta_;
     std::vector<Line> map_lines_;
 
     void StartTFThread(){
@@ -172,7 +175,6 @@ private:
                 }
                 RCLCPP_INFO(this->get_logger(), "points: %d", laser_data.size());
                 float transform_rot = QuaternionToEuler({transform.transform.rotation.x, transform.transform.rotation.y, transform.transform.rotation.z, transform.transform.rotation.w}).z;
-                float delta = 0.02;
 
                 auto base_tf3_vec = Vector3{transform.transform.translation.x, transform.transform.translation.y, transform_rot};
                 std::vector<Line> moved_lines = LinesTransform(map_lines_, invert_tf2d_from_vec3(base_offset_tf_vec));
@@ -185,8 +187,8 @@ private:
                     if(moved_lines.size() != 0) for (size_t i = 0; i < calc_per_loop_; i++)
                     {
                         auto points = Vector2Transform(laser_data, tf2d_from_vec3(point_tf_vec_cp));
-                        auto grad = grad_ave_distance_points_to_lines(points, moved_lines, delta);
-                        point_tf_vec_cp = Vector3Add(point_tf_vec_cp,  Vector3Multiply(grad, {-0.02, -0.02, -0.02}));
+                        auto grad = grad_ave_distance_points_to_lines(points, moved_lines, {xy_gradient_delta_, xy_gradient_delta_, theta_gradient_delta_});
+                        point_tf_vec_cp = Vector3Add(point_tf_vec_cp,  Vector3Multiply(grad, {-xy_gradient_delta_, -xy_gradient_delta_, -theta_gradient_delta_}));
                     }
                     else
                     {

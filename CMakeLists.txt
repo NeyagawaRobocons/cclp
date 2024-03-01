@@ -18,6 +18,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/Point2D.msg"
   "msg/Line.msg"
   "msg/LineArray.msg"
+  "msg/MapRequest.msg"
   DEPENDENCIES std_msgs
 )
 rosidl_get_typesupport_target(cpp_typesupport_target ${PROJECT_NAME} "rosidl_typesupport_cpp")
@@ -27,10 +28,16 @@ ament_export_dependencies(rosidl_default_runtime)
 ament_auto_add_executable(cord_correction_node src/cord_correction_node.cpp)
 target_link_libraries(cord_correction_node raylib)
 target_link_libraries(cord_correction_node "${cpp_typesupport_target}")
+target_include_directories(cord_correction_node PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>)
 
 ament_auto_add_executable(monitor src/monitor.cpp)
 target_link_libraries(monitor raylib)
 target_link_libraries(monitor "${cpp_typesupport_target}")
+target_include_directories(monitor PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>)
 
 ament_auto_add_executable(correction_test src/correction_test.cpp)
 target_link_libraries(correction_test raylib)
@@ -42,6 +49,12 @@ install(TARGETS
   correction_test
   DESTINATION lib/${PROJECT_NAME}
 )
+
+install(
+  DIRECTORY include/
+  DESTINATION include
+)
+ament_export_include_directories(include)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)

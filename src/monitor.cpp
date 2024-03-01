@@ -105,7 +105,7 @@ private:
         Vector2 mouse_map_end = {0, 0};
 
         SetTargetFPS(60);
-        while (!WindowShouldClose())
+        while (!WindowShouldClose() && rclcpp::ok())
         {
             screenWidth = GetScreenWidth();
             screenHeight = GetScreenHeight();
@@ -139,26 +139,26 @@ private:
                 mouse_point_pub_->publish(pose);
             }
 
-            geometry_msgs::msg::TransformStamped transform;
+            Vector3 tf_vec3;
+            std::string err_tf;
             try{
-            transform = tf_buffer_->lookupTransform(map_frame_, base_frame_, tf2::TimePointZero);
+                geometry_msgs::msg::TransformStamped transform = tf_buffer_->lookupTransform(map_frame_, base_frame_, tf2::TimePointZero);
+                Quaternion q = {transform.transform.rotation.x, transform.transform.rotation.y, transform.transform.rotation.z, transform.transform.rotation.w};
+                tf_vec3 = {transform.transform.translation.x, transform.transform.translation.y, QuaternionToEuler(q).z};
             }catch(tf2::TransformException &ex){
-                RCLCPP_ERROR(this->get_logger(), "Transform error: %s", ex.what());
-                continue;
+                err_tf = ex.what();
             }
-            Quaternion q = {transform.transform.rotation.x, transform.transform.rotation.y, transform.transform.rotation.z, transform.transform.rotation.w};
-            Vector3 tf_vec3 = {transform.transform.translation.x, transform.transform.translation.y, QuaternionToEuler(q).z};
 
 
-            geometry_msgs::msg::TransformStamped transform_base;
+            Vector3 tf_vec3_base;
+            std::string err_tf_base;
             try{
-            transform_base = tf_buffer_->lookupTransform(map_frame_, "base_link", tf2::TimePointZero);
+                geometry_msgs::msg::TransformStamped transform_base = tf_buffer_->lookupTransform(map_frame_, "base_link", tf2::TimePointZero);
+                Quaternion q_base = {transform_base.transform.rotation.x, transform_base.transform.rotation.y, transform_base.transform.rotation.z, transform_base.transform.rotation.w};
+                tf_vec3_base = {transform_base.transform.translation.x, transform_base.transform.translation.y, QuaternionToEuler(q_base).z};
             }catch(tf2::TransformException &ex){
-                RCLCPP_ERROR(this->get_logger(), "Transform error: %s", ex.what());
-                continue;
+                err_tf_base = ex.what();
             }
-            Quaternion q_base = {transform_base.transform.rotation.x, transform_base.transform.rotation.y, transform_base.transform.rotation.z, transform_base.transform.rotation.w};
-            Vector3 tf_vec3_baes = {transform_base.transform.translation.x, transform_base.transform.translation.y, QuaternionToEuler(q_base).z};
 
             std::vector<Vector2> moved_points1;
             {
@@ -189,7 +189,7 @@ private:
                 }
                 // Draw the transform
                 draw_tf_scale_y_inv(tf_vec3, map_draw_scale, map_draw_origin);
-                draw_tf_scale_y_inv(tf_vec3_baes, map_draw_scale, map_draw_origin);
+                draw_tf_scale_y_inv(tf_vec3_base, map_draw_scale, map_draw_origin);
 
                 std::stringstream ss;
                 ss << "FPS" << GetFPS() << std::endl << std::endl;
@@ -197,6 +197,8 @@ private:
                 ss << "Points1: " << moved_points1.size() << std::endl;
                 ss << "Points2: " << moved_points2.size() << std::endl;
                 ss << "Lines: " << lines.size() << std::endl;
+                ss << "Error transform: " << err_tf << std::endl;
+                ss << "Error base transorm: " << err_tf_base << std::endl;
                 DrawText(ss.str().c_str(), 10, 10, 20, GRAY);
                 // End drawing
             EndDrawing();
@@ -205,32 +207,6 @@ private:
         CloseWindow();
         rclcpp::shutdown();
     }
-
-    // void get_lidar_params()
-    // {
-    //     auto request = std::make_shared<rcl_interfaces::srv::GetParameters::Request>();
-    //     request->names.push_back("lidar_offset_x");
-    //     request->names.push_back("lidar_offset_y");
-    //     request->names.push_back("lidar_offset_theta");
-    //     request->names.push_back("lidar_invert_x");
-    //     request->names.push_back("lidar_circle_mask_radius");
-    //     request->names.push_back("lidar_circle_mask_center_x");
-    //     request->names.push_back("lidar_circle_mask_center_y");
-    //     auto future_result = get_parameters_client_->async_send_request(request);
-    //     future_result.wait();
-    //     auto response = future_result.get();
-    //     if(response->values.size() != 7){
-    //         RCLCPP_ERROR(this->get_logger(), "Failed to get parameters");
-    //         return;
-    //     }
-    //     lidar_offset_x_ = response->values[0].double_value;
-    //     lidar_offset_y_ = response->values[1].double_value;
-    //     lidar_offset_theta_ = response->values[2].double_value;
-    //     lidar_invert_x_ = response->values[3].bool_value;
-    //     lidar_circle_mask_radius_ = response->values[4].double_value;
-    //     lidar_circle_mask_center_x_ = response->values[5].double_value;
-    //     lidar_circle_mask_center_y_ = response->values[6].double_value;
-    // }
 
 
    void Laser1ScanCallback(const sensor_msgs::msg::LaserScan::SharedPtr msg){

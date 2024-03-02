@@ -40,10 +40,10 @@ launch:
     param:
     -
         name: output_topic
-        value: corrected_output_topic
-- node:
-    pkg: cclp
-    exec: monitor
+        value: corrected_robot_pose
 # - node:
 #     pkg: cclp
-#     exec: line_map_server.py
+#     exec: monitor
+- node:
+    pkg: cclp
+    exec: line_map_server_node.py

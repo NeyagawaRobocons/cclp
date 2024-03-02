@@ -75,14 +75,14 @@ void draw_line_scale_y_inv(Line line, float scale, Vector2 origin={0,0}, Color c
             Vector2Add(Vector2Multiply(line.to, {scale, -scale}), origin),
             4.0f, color);
 }
-void draw_lines_scale(std::vector<Line> &lines, float scale, Vector2 origin={0,0}){
+void draw_lines_scale(std::vector<Line> &lines, float scale, Vector2 origin={0,0}, Color color=GRAY){
     for(Line l : lines){
-        draw_line_scale(l, scale, origin);
+        draw_line_scale(l, scale, origin, color);
     }
 }
-void draw_lines_scale_y_inv(std::vector<Line> &lines, float scale, Vector2 origin={0,0}){
+void draw_lines_scale_y_inv(std::vector<Line> &lines, float scale, Vector2 origin={0,0}, Color color=GRAY){
     for(Line l : lines){
-        draw_line_scale_y_inv(l, scale, origin);
+        draw_line_scale_y_inv(l, scale, origin, color);
     }
 }
 

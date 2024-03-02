@@ -30,7 +30,7 @@ public:
         this->declare_parameter<std::string>("laser2_scan_topic", "scan2");
         this->declare_parameter<std::string>("initial_pose_topic", "initial_pose");
         this->declare_parameter<double>("publish_rate", 20.0);
-        this->declare_parameter<int>("calc_per_loop", 15);
+        this->declare_parameter<int>("calc_per_loop", 10);
         this->declare_parameter<double>("xy_gradient_delta", 0.02);
         this->declare_parameter<double>("theta_gradient_delta", 0.02);
         // lidar1 parameters

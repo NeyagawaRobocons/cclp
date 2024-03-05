@@ -41,6 +41,9 @@ launch:
     -
         name: output_topic
         value: corrected_robot_pose
+    -
+        name: theta_gradient_delta
+        value: 0.05
 # - node:
 #     pkg: cclp
 #     exec: monitor

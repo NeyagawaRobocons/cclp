@@ -213,10 +213,10 @@ private:
                 auto rot = QuaternionFromEuler(0, 0, base_tf3_vec_now.z + base_offset_tf_vec.z + point_tf_vec_cp.z);
                 // auto rot = QuaternionFromEuler(0, 0, transform_rot - point_tf_vec_cp.z);
 
-                std::cout << "vec_base: " << base_tf3_vec_now.x << ", " << base_tf3_vec_now.y << ", " << base_tf3_vec_now.z << std::endl;
-                std::cout << "vec_offset: " << base_offset_tf_vec.x << ", " << base_offset_tf_vec.y << ", " << base_offset_tf_vec.z << std::endl;
-                std::cout << "point_tf_vec: " << point_tf_vec_cp.x << ", " << point_tf_vec_cp.y << ", " << point_tf_vec_cp.z << std::endl;
-                std::cout << "vec: " << vec.x << ", " << vec.y << std::endl << std::endl;
+                // std::cout << "vec_base: " << base_tf3_vec_now.x << ", " << base_tf3_vec_now.y << ", " << base_tf3_vec_now.z << std::endl;
+                // std::cout << "vec_offset: " << base_offset_tf_vec.x << ", " << base_offset_tf_vec.y << ", " << base_offset_tf_vec.z << std::endl;
+                // std::cout << "point_tf_vec: " << point_tf_vec_cp.x << ", " << point_tf_vec_cp.y << ", " << point_tf_vec_cp.z << std::endl;
+                // std::cout << "vec: " << vec.x << ", " << vec.y << std::endl << std::endl;
 
                 geometry_msgs::msg::TransformStamped tf_msg;
                 tf_msg.header.stamp = base_tf3_vec_now_time;
@@ -245,7 +245,7 @@ private:
 
                 rate.sleep();
 
-                RCLCPP_INFO(this->get_logger(), "point_tf_vec: %f, %f, %f", point_tf_vec_cp.x, point_tf_vec_cp.y, point_tf_vec_cp.z);
+                // RCLCPP_INFO(this->get_logger(), "point_tf_vec: %f, %f, %f", point_tf_vec_cp.x, point_tf_vec_cp.y, point_tf_vec_cp.z);
             }
         });
 
